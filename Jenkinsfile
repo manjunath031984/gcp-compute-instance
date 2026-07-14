@@ -29,6 +29,49 @@ pipeline {
       }
     }
 
+    stage('Agent TLS Preflight') {
+      steps {
+        sh '''
+          set -e
+          export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+          mkdir -p "$CLOUDSDK_CONFIG"
+
+          if ! command -v gcloud >/dev/null 2>&1; then
+            echo "ERROR: gcloud CLI is not installed on this Jenkins agent"
+            exit 1
+          fi
+
+          gcloud --version
+
+          if command -v python3 >/dev/null 2>&1; then
+            export CLOUDSDK_PYTHON="$(command -v python3)"
+            python3 - <<'PY'
+import ssl
+v = ssl.OPENSSL_VERSION_INFO
+print("Python OpenSSL:", ssl.OPENSSL_VERSION)
+if v < (1, 1, 1):
+    raise SystemExit("OpenSSL is too old. Require >= 1.1.1 for modern Google OAuth TLS")
+PY
+          else
+            echo "WARNING: python3 not found. gcloud may use an older Python runtime."
+          fi
+
+          if command -v curl >/dev/null 2>&1; then
+            curl --silent --show-error --fail --tlsv1.2 https://oauth2.googleapis.com/.well-known/openid-configuration >/dev/null
+          elif command -v python3 >/dev/null 2>&1; then
+            python3 - <<'PY'
+import urllib.request
+urllib.request.urlopen("https://oauth2.googleapis.com/.well-known/openid-configuration", timeout=20)
+print("OAuth endpoint TLS check passed")
+PY
+          else
+            echo "ERROR: Neither curl nor python3 is available for TLS preflight checks"
+            exit 1
+          fi
+        '''
+      }
+    }
+
     stage('Authenticate to GCP') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
@@ -142,6 +185,11 @@ pipeline {
       steps {
         sh '''
           set -e
+          export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+          mkdir -p "$CLOUDSDK_CONFIG"
+          if command -v python3 >/dev/null 2>&1; then
+            export CLOUDSDK_PYTHON="$(command -v python3)"
+          fi
           INSTANCE_NAME=$(terraform output -raw instance_name)
           ZONE=$(terraform output -raw instance_zone)
           SERVICE_ACCOUNT_EMAIL=$(terraform output -raw service_account_email)
