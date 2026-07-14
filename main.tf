@@ -1,10 +1,10 @@
 # Root module that instantiates the service account, IAM, and compute instance modules.
 module "service_account" {
-  source               = "./modules/service-account"
-  project_id           = var.project_id
-  service_account_name = var.service_account_name
-  display_name         = "Compute Instance Service Account"
-  labels               = local.common_labels
+  source                      = "./modules/service-account"
+  project_id                  = var.project_id
+  service_account_name        = var.service_account_name
+  use_existing_service_account = var.use_existing_service_account
+  display_name                = "Compute Instance Service Account"
 }
 
 module "iam" {

@@ -14,8 +14,8 @@ variable "display_name" {
   type        = string
 }
 
-variable "labels" {
-  description = "Labels applied to the service account."
-  type        = map(string)
-  default     = {}
+variable "use_existing_service_account" {
+  description = "Set to true to use an existing service account with the given name instead of creating a new one."
+  type        = bool
+  default     = false
 }

@@ -72,3 +72,9 @@ variable "service_account_name" {
   type        = string
   default     = "gcp-compute-instance"
 }
+
+variable "use_existing_service_account" {
+  description = "If true, use an existing service account with the given name instead of creating a new one."
+  type        = bool
+  default     = false
+}
