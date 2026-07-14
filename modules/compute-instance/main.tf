@@ -94,3 +94,8 @@ output "external_ip" {
   description = "Static external IP assigned to the compute instance."
   value       = google_compute_address.static_ip.address
 }
+
+output "service_account_scopes" {
+  description = "OAuth scopes assigned to the compute instance service account."
+  value       = google_compute_instance.this.service_account[0].scopes
+}
