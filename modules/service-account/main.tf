@@ -4,7 +4,6 @@ resource "google_service_account" "this" {
   project      = var.project_id
   display_name = var.display_name
   description  = "Service account for compute instance operations."
-  labels       = var.labels
 }
 
 # Generate a new service account key in JSON format.
