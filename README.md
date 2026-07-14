@@ -71,6 +71,18 @@ BACKEND_BUCKET=gcp-dev-july-2026-terraform-state
 
 Create a service account and download the JSON key file. Store it as a Jenkins credential with ID `gcp-sa-key`.
 
+### Jenkins Variables for GCP Auth Automation
+
+The setup script and Jenkins stage use these environment variables:
+
+```bash
+JENKINS_URL=https://jenkins.example.com
+JENKINS_USERNAME=jenkins-bot
+JENKINS_API_TOKEN=xxxxxxxxxxxxxxxx
+GOOGLE_CLOUD_PROJECT=gcp-dev-july-2026
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/bootstrap-auth.json
+```
+
 ### Terraform Variables
 
 Update `terraform-gcp/terraform.tfvars` with your specific values:
@@ -92,20 +104,123 @@ image_family          = "ubuntu-2404-lts"
 The Jenkins pipeline executes the following stages:
 
 1. **Checkout** - Clone repository from SCM
-2. **Terraform Format** - Validate code formatting
-3. **Terraform Init** - Initialize Terraform with GCS backend
-4. **Terraform Validate** - Validate Terraform configuration
-5. **Enable GCP APIs** - Enable required APIs
-6. **Terraform Plan (IAM)** - Plan service account and IAM roles
-7. **Terraform Apply (IAM)** - Apply service account and IAM roles
-8. **IAM Validation** - Verify service account and roles are created
-9. **Manual Approval** - Require manual approval before VM creation
-10. **Terraform Plan (Compute)** - Plan VM instance creation
-11. **Terraform Apply (Compute)** - Create VM instance
-12. **VM Verification** - Verify VM is running and properly configured
-13. **Terraform Outputs** - Display infrastructure outputs
-14. **Cleanup** - Clean up temporary plan files
-15. **Optional Destroy** - Optionally destroy all infrastructure
+2. **Setup GCP Authentication** - Idempotently verifies/creates service account, rotates key, and updates Jenkins credential
+3. **Agent TLS Preflight** - Checks gcloud runtime and TLS readiness for Google OAuth endpoints
+4. **Authenticate to GCP** - Authenticates using Jenkins file credential
+5. **Terraform Format** - Validate code formatting
+6. **Terraform Init** - Initialize Terraform with GCS backend
+7. **Terraform Validate** - Validate Terraform configuration
+8. **Terraform Plan (IAM)** - Plan service account and IAM roles
+9. **Terraform Apply (IAM)** - Apply service account and IAM roles
+10. **IAM Validation** - Verify service account and roles are created
+11. **Manual Approval** - Require manual approval before VM creation
+12. **Terraform Plan (Compute)** - Plan VM instance creation
+13. **Terraform Apply (Compute)** - Create VM instance
+14. **VM Verification** - Verify VM is running and properly configured
+15. **Terraform Outputs** - Display infrastructure outputs
+16. **Cleanup** - Clean up temporary plan files
+17. **Optional Destroy** - Optionally destroy all infrastructure
+
+## GCP Service Account Automation Script
+
+This repository includes [scripts/setup-gcp-service-account.sh](scripts/setup-gcp-service-account.sh) to automate complete GCP auth setup and Jenkins credential update for:
+
+- Project: `gcp-dev-july-2026`
+- Service account: `infra-admin@gcp-dev-july-2026.iam.gserviceaccount.com`
+- Jenkins credential ID: `gcp-service-account-key`
+
+The script is idempotent and safe for repeated execution.
+
+### What It Does
+
+1. Validates current gcloud authentication and active project context
+2. Verifies project `gcp-dev-july-2026` exists
+3. Reuses or creates service account `infra-admin`
+4. Ensures required IAM roles are assigned without duplicate bindings
+5. Deletes all old user-managed keys and creates exactly one new JSON key
+6. Validates the new key by activating it and checking project + storage access
+7. Backs up existing Jenkins credential (if present) under `backup/`
+8. Creates or replaces Jenkins Secret File credential `gcp-service-account-key`
+9. Verifies credential exists in Jenkins
+10. Removes temporary key files securely
+
+### Prerequisites
+
+- `bash` (Linux-based Jenkins agent)
+- `gcloud` CLI
+- `python3`
+- `curl`
+- Jenkins credentials plugin with Secret File support
+- Jenkins credentials configured:
+   - `jenkins-api-user` (Username with API token as password)
+   - `jenkins-url` (String containing base Jenkins URL)
+
+### Required IAM Permissions
+
+The bootstrap identity running the script must be able to:
+
+- View and configure project IAM policy (`resourcemanager.projects.getIamPolicy`, `setIamPolicy`)
+- Create and view service accounts (`iam.serviceAccounts.create`, `get`)
+- List/delete/create service account keys (`iam.serviceAccountKeys.list`, `delete`, `create`)
+- Validate project and storage access (`resourcemanager.projects.get`, `storage.buckets.list`)
+
+### Execute Manually
+
+```bash
+chmod +x scripts/setup-gcp-service-account.sh
+export JENKINS_URL="https://jenkins.example.com"
+export JENKINS_USERNAME="jenkins-bot"
+export JENKINS_API_TOKEN="<api-token>"
+export GOOGLE_CLOUD_PROJECT="gcp-dev-july-2026"
+./scripts/setup-gcp-service-account.sh
+```
+
+### Expected Output
+
+- Colored logs with `INFO`, `SUCCESS`, `WARNING`, and `ERROR`
+- Confirmation of project and service account state
+- IAM role assignment status per role
+- Jenkins credential backup path when existing credential is found
+- Final verification message for credential `gcp-service-account-key`
+
+### Rollback Procedure
+
+If Jenkins credential update needs rollback:
+
+1. Locate latest backup in `backup/` (timestamped XML)
+2. Open Jenkins credential configuration UI
+3. Restore previous credential content or recreate using backup metadata
+4. Re-run pipeline starting from `Setup GCP Authentication` stage
+
+If GCP key rotation needs rollback:
+
+1. Generate a replacement key manually for `infra-admin`
+2. Upload the key to Jenkins credential `gcp-service-account-key`
+3. Validate with `gcloud auth activate-service-account --key-file=<key.json>`
+
+### Troubleshooting
+
+#### Common GCP Authentication Errors
+
+- `TLSV1_ALERT_PROTOCOL_VERSION`
+   - Cause: old TLS/OpenSSL runtime on Jenkins agent
+   - Fix: upgrade Cloud SDK, Python/OpenSSL, and verify proxy supports TLS 1.2+
+
+- `PERMISSION_DENIED` when creating SA or keys
+   - Cause: bootstrap identity missing IAM permissions
+   - Fix: grant required IAM roles to bootstrap identity
+
+- `403` while listing buckets
+   - Cause: key is valid but lacks storage permissions
+   - Fix: ensure `roles/storage.admin` is attached
+
+- Jenkins `403 No valid crumb`
+   - Cause: missing/expired crumb token
+   - Fix: verify `JENKINS_URL`, API token, and crumb issuer settings
+
+- Jenkins credential not found after update
+   - Cause: wrong credential domain/store or insufficient Jenkins permissions
+   - Fix: grant credentials create/update rights and rerun script
 
 ## Running the Pipeline
 

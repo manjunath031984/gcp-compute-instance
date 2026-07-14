@@ -29,6 +29,22 @@ pipeline {
       }
     }
 
+    stage('Setup GCP Authentication') {
+      steps {
+        withCredentials([
+          usernamePassword(credentialsId: 'jenkins-api-user', usernameVariable: 'JENKINS_USERNAME', passwordVariable: 'JENKINS_API_TOKEN'),
+          string(credentialsId: 'jenkins-url', variable: 'JENKINS_URL')
+        ]) {
+          sh '''
+            set -e
+            chmod +x scripts/setup-gcp-service-account.sh
+            export GOOGLE_CLOUD_PROJECT="$PROJECT_ID"
+            scripts/setup-gcp-service-account.sh
+          '''
+        }
+      }
+    }
+
     stage('Agent TLS Preflight') {
       steps {
         sh '''
