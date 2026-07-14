@@ -6,13 +6,12 @@ pipeline {
   }
 
   environment {
-    GOOGLE_APPLICATION_CREDENTIALS = '/var/jenkins_home/gcp-sa-key.json'
-    TF_IN_AUTOMATION               = 'true'
-    TF_INPUT                       = 'false'
-    TF_LOG                         = 'INFO'
-    PROJECT_ID                     = 'gcp-dev-july-2026'
-    REGION                         = 'us-central1'
-    ZONE                           = 'us-central1-a'
+    TF_IN_AUTOMATION = 'true'
+    TF_INPUT         = 'false'
+    TF_LOG           = 'INFO'
+    PROJECT_ID       = 'gcp-dev-july-2026'
+    REGION           = 'us-central1'
+    ZONE             = 'us-central1-a'
   }
 
   options {
@@ -55,14 +54,12 @@ pipeline {
 
     stage('Verify Credentials') {
       steps {
-        sh '''
-          if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-            echo "Found credentials at $GOOGLE_APPLICATION_CREDENTIALS"
-          else
-            echo "ERROR: credentials file not found at $GOOGLE_APPLICATION_CREDENTIALS"
-            exit 1
-          fi
-        '''
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh '''
+            echo "Using credentials file: $GOOGLE_APPLICATION_CREDENTIALS"
+            ls -l "$GOOGLE_APPLICATION_CREDENTIALS"
+          '''
+        }
       }
     }
 
@@ -74,19 +71,25 @@ pipeline {
 
     stage('Terraform Init') {
       steps {
-        sh 'terraform init'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh 'terraform init'
+        }
       }
     }
 
     stage('Terraform Validate') {
       steps {
-        sh 'terraform validate'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh 'terraform validate'
+        }
       }
     }
 
     stage('Terraform Plan') {
       steps {
-        sh 'terraform plan -var-file=dev.tfvars -out=tfplan'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh 'terraform plan -var-file=dev.tfvars -out=tfplan'
+        }
       }
     }
 
@@ -98,7 +101,9 @@ pipeline {
 
     stage('Terraform Apply') {
       steps {
-        sh 'terraform apply -auto-approve tfplan'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh 'terraform apply -auto-approve tfplan'
+        }
       }
     }
 
@@ -114,7 +119,9 @@ pipeline {
       }
       steps {
         input message: 'Confirm Terraform destroy?'
-        sh 'terraform destroy -var-file=dev.tfvars -auto-approve'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh 'terraform destroy -var-file=dev.tfvars -auto-approve'
+        }
       }
     }
 
