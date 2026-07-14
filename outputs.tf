@@ -1,17 +1,11 @@
 output "service_account_email" {
-  description = "Email address of the gcp-compute-instance service account."
-  value       = module.service_account.email
+  description = "Email address of the existing service account attached to the compute instance."
+  value       = var.service_account_email
 }
 
 output "service_account_name" {
-  description = "Service account ID created for the deployment."
-  value       = module.service_account.account_id
-}
-
-output "service_account_key" {
-  description = "Generated JSON key for the new service account."
-  value       = module.service_account.service_account_key
-  sensitive   = true
+  description = "Service account ID derived from the configured service account email."
+  value       = split("@", var.service_account_email)[0]
 }
 
 output "instance_name" {

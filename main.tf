@@ -14,21 +14,13 @@ module "validation" {
   required_apis = var.required_apis
 }
 
-module "service_account" {
-  source               = "./modules/service-account"
-  project_id           = var.project_id
-  service_account_name = var.service_account_name
-  display_name         = "GCP Compute Instance Service Account"
-  labels               = local.common_labels
-}
-
 module "iam" {
   source                = "./modules/iam"
   project_id            = var.project_id
-  service_account_email = module.service_account.email
+  service_account_email = var.service_account_email
   required_roles        = var.required_roles
   labels                = local.common_labels
-  depends_on            = [module.service_account, module.validation]
+  depends_on            = [module.validation]
 }
 
 module "compute_instance" {
@@ -44,7 +36,7 @@ module "compute_instance" {
   network_name           = var.network_name
   subnetwork_name        = var.subnetwork_name
   subnetwork_ip_cidr     = var.subnetwork_ip_cidr_range
-  service_account_email  = module.service_account.email
+  service_account_email  = var.service_account_email
   tags                   = var.tags
   metadata               = var.metadata
   labels                 = local.common_labels

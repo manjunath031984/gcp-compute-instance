@@ -27,10 +27,10 @@ variable "backend_bucket" {
   default     = "YOUR_GCP_TF_STATE_BUCKET"
 }
 
-variable "service_account_name" {
-  description = "Name of the service account created for compute instance usage."
+variable "service_account_email" {
+  description = "Email address of the existing service account used by the compute instance."
   type        = string
-  default     = "gcp-compute-instance"
+  default     = "infra-admin@gcp-dev-july-2026.iam.gserviceaccount.com"
 }
 
 variable "instance_name" {

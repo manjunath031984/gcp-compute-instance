@@ -270,7 +270,6 @@ terraform destroy -var-file=terraform.tfvars
 The pipeline provides the following outputs:
 
 - **service_account_email**: Email address of the created service account
-- **service_account_key**: JSON key of the service account (sensitive)
 - **instance_id**: Compute Engine instance ID
 - **instance_name**: Compute Engine instance name
 - **instance_zone**: Zone where instance is deployed
