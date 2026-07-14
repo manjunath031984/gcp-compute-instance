@@ -34,7 +34,14 @@ pipeline {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
+            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+            if command -v python3 >/dev/null 2>&1; then
+              export CLOUDSDK_PYTHON="$(command -v python3)"
+            fi
             export GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud auth revoke --all --quiet || true
+            gcloud --version
             gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
             gcloud config set project "$PROJECT_ID"
             gcloud auth list
@@ -80,9 +87,15 @@ pipeline {
       steps {
         sh '''
           set -e
+          export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+          mkdir -p "$CLOUDSDK_CONFIG"
+          if command -v python3 >/dev/null 2>&1; then
+            export CLOUDSDK_PYTHON="$(command -v python3)"
+          fi
           SERVICE_ACCOUNT_EMAIL=$(terraform output -raw service_account_email)
           terraform output -raw service_account_key > generated-service-account.json
           export GOOGLE_APPLICATION_CREDENTIALS="$PWD/generated-service-account.json"
+          gcloud auth revoke --all --quiet || true
           gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
           gcloud config set project "$PROJECT_ID"
           gcloud iam service-accounts describe "$SERVICE_ACCOUNT_EMAIL" --project="$PROJECT_ID"
