@@ -11,12 +11,10 @@ RUN apt-get update && \
       curl \
       gnupg \
       lsb-release \
-      software-properties-common \
       git \
       python3 \
       python3-pip \
       docker.io \
-      docker-compose-plugin \
       jq \
       zip \
       unzip \
