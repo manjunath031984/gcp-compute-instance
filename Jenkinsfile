@@ -27,22 +27,35 @@ pipeline {
     }
 
     stage('Authenticate to GCP') {
-      steps {
-        withCredentials([file(credentialsId: params.GCP_SA_CREDENTIAL_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            if command -v python3 >/dev/null 2>&1; then
-              export CLOUDSDK_PYTHON="$(command -v python3)"
-            fi
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-            gcloud auth list
-          '''
+    steps {
+        withCredentials([
+            file(
+                credentialsId: params.GCP_SA_CREDENTIAL_ID,
+                variable: 'GOOGLE_APPLICATION_CREDENTIALS'
+            )
+        ]) {
+            sh '''
+                set -e
+
+                export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+                mkdir -p "$CLOUDSDK_CONFIG"
+
+                echo "Activating GCP Service Account..."
+                gcloud auth activate-service-account \
+                    --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+
+                echo "Setting GCP Project..."
+                gcloud config set project "$PROJECT_ID"
+
+                echo "Authenticated Accounts:"
+                gcloud auth list
+
+                echo "Current Project:"
+                gcloud config get-value project
+            '''
         }
-      }
     }
+}
 
     stage('Terraform Init') {
       steps {
