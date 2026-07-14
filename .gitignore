@@ -1,20 +1,62 @@
-# Terraform local directories and state files
+# Terraform
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
-tfplan
+.terraform.lock.hcl
+terraform.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
-# Local credentials and secrets
-*.json
-!README.md
-!Jenkinsfile
-!versions.tf
-!provider.tf
-!remote-state.tf
-!variables.tf
-!locals.tf
-!main.tf
-!outputs.tf
-!dev.tfvars
-!modules/**
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+*.code-workspace
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build and CI/CD
+.gradle/
+build/
+target/
+dist/
+.jenkins/
+.circleci/
+.github/workflows/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+generated-service-account.json
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Plan files
+*.plan
+tfplan
+iam.plan
+compute.plan
+
+# Credentials
+credentials.json
+service-account.json
+gcp-sa-key.json

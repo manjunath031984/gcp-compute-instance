@@ -12,6 +12,8 @@ pipeline {
     PROJECT_ID       = 'gcp-dev-july-2026'
     REGION           = 'us-central1'
     ZONE             = 'us-central1-a'
+    ENVIRONMENT      = 'dev'
+    BACKEND_BUCKET   = 'gcp-dev-july-2026-terraform-state'
   }
 
   options {
@@ -27,59 +29,17 @@ pipeline {
       }
     }
 
-    stage('Verify Tools') {
-      steps {
-        sh '''
-          echo "terraform version"
-          terraform version
-          echo "gcloud version"
-          gcloud version
-          echo "git version"
-          git --version
-          echo "docker version"
-          if command -v docker >/dev/null 2>&1; then
-            docker --version
-          else
-            echo "docker is not installed in this agent"
-          fi
-          echo "python3 version"
-          if command -v python3 >/dev/null 2>&1; then
-            python3 --version
-          else
-            echo "python3 is not installed in this agent"
-          fi
-        '''
-      }
-    }
-
-    stage('Verify Credentials') {
+    stage('Authenticate to GCP') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
-            echo "Using credentials file: $GOOGLE_APPLICATION_CREDENTIALS"
-            ls -l "$GOOGLE_APPLICATION_CREDENTIALS"
+            set -e
+            export GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud config set project "$PROJECT_ID"
+            gcloud auth list
+            gcloud config list
           '''
-        }
-      }
-    }
-
-    stage('Prepare GCP Service Account') {
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          script {
-            env.SERVICE_ACCOUNT_EMAIL = "gcp-compute-instance@${env.PROJECT_ID}.iam.gserviceaccount.com"
-            def exists = sh(script: '''
-              set -e
-              gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-              if gcloud iam service-accounts describe "$SERVICE_ACCOUNT_EMAIL" --project="$PROJECT_ID" >/dev/null 2>&1; then
-                echo true
-              else
-                echo false
-              fi
-            ''', returnStdout: true).trim()
-            env.USE_EXISTING_SERVICE_ACCOUNT = exists
-            echo "Using existing service account: ${exists}"
-          }
         }
       }
     }
@@ -93,62 +53,128 @@ pipeline {
     stage('Terraform Init') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform init -backend-config="credentials=$GOOGLE_APPLICATION_CREDENTIALS"'
+          sh 'terraform init -backend-config="bucket=$BACKEND_BUCKET" -backend-config="prefix=${ENVIRONMENT}/terraform" -backend-config="credentials=$GOOGLE_APPLICATION_CREDENTIALS"'
         }
       }
     }
 
     stage('Terraform Validate') {
       steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform validate -var="use_existing_service_account=${USE_EXISTING_SERVICE_ACCOUNT}"'
-        }
+        sh 'terraform validate'
       }
     }
 
-    stage('Terraform Plan') {
+    stage('Terraform Plan (IAM)') {
       steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform plan -var-file=dev.tfvars -var="use_existing_service_account=${USE_EXISTING_SERVICE_ACCOUNT}" -out=tfplan'
-        }
+        sh 'terraform plan -var-file=terraform.tfvars -out=iam.plan -target=module.service_account -target=module.iam'
+      }
+    }
+
+    stage('Terraform Apply (IAM)') {
+      steps {
+        sh 'terraform apply -auto-approve iam.plan'
+      }
+    }
+
+    stage('IAM Validation') {
+      steps {
+        sh '''
+          set -e
+          SERVICE_ACCOUNT_EMAIL=$(terraform output -raw service_account_email)
+          terraform output -raw service_account_key > generated-service-account.json
+          export GOOGLE_APPLICATION_CREDENTIALS="$PWD/generated-service-account.json"
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+          gcloud config set project "$PROJECT_ID"
+          gcloud iam service-accounts describe "$SERVICE_ACCOUNT_EMAIL" --project="$PROJECT_ID"
+          for role in \
+            roles/compute.admin \
+            roles/compute.instanceAdmin.v1 \
+            roles/iam.serviceAccountUser \
+            roles/iam.serviceAccountTokenCreator \
+            roles/storage.admin \
+            roles/storage.objectAdmin \
+            roles/logging.logWriter \
+            roles/monitoring.metricWriter \
+            roles/compute.networkAdmin \
+            roles/compute.securityAdmin \
+            roles/serviceusage.serviceUsageAdmin; do
+            if ! gcloud projects get-iam-policy "$PROJECT_ID" --flatten="bindings[]" --filter="bindings.members:serviceAccount:$SERVICE_ACCOUNT_EMAIL" --format="value(bindings.role)" | grep -qx "$role"; then
+              echo "ERROR: Required role $role is not attached to the service account"
+              exit 1
+            fi
+          done
+        '''
       }
     }
 
     stage('Manual Approval') {
       steps {
-        input message: 'Approve Terraform apply?'
+        input message: 'Approve compute instance creation?'
       }
     }
 
-    stage('Terraform Apply') {
+    stage('Terraform Plan (Compute)') {
       steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform apply -auto-approve tfplan'
-        }
+        sh 'terraform plan -var-file=terraform.tfvars -out=compute.plan'
       }
     }
 
-    stage('Terraform Output') {
+    stage('Terraform Apply (Compute)') {
+      steps {
+        sh 'terraform apply -auto-approve compute.plan'
+      }
+    }
+
+    stage('VM Verification') {
+      steps {
+        sh '''
+          set -e
+          INSTANCE_NAME=$(terraform output -raw instance_name)
+          ZONE=$(terraform output -raw instance_zone)
+          SERVICE_ACCOUNT_EMAIL=$(terraform output -raw service_account_email)
+          EXTERNAL_IP=$(terraform output -raw instance_external_ip)
+          if ! gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --project="$PROJECT_ID" >/dev/null 2>&1; then
+            echo "ERROR: VM $INSTANCE_NAME does not exist"
+            exit 1
+          fi
+          STATUS=$(gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --project="$PROJECT_ID" --format='value(status)')
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "ERROR: VM status is $STATUS"
+            exit 1
+          fi
+          ACTUAL_SA=$(gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --project="$PROJECT_ID" --format='value(serviceAccounts.email)')
+          if [ "$ACTUAL_SA" != "$SERVICE_ACCOUNT_EMAIL" ]; then
+            echo "ERROR: Service account mismatch: expected $SERVICE_ACCOUNT_EMAIL got $ACTUAL_SA"
+            exit 1
+          fi
+          if [ -z "$EXTERNAL_IP" ]; then
+            echo "ERROR: External IP is missing"
+            exit 1
+          fi
+          echo "VM verification complete: $INSTANCE_NAME is RUNNING with external IP $EXTERNAL_IP"
+        '''
+      }
+    }
+
+    stage('Terraform Outputs') {
       steps {
         sh 'terraform output'
       }
     }
 
-    stage('Terraform Destroy') {
+    stage('Cleanup') {
+      steps {
+        sh 'rm -f iam.plan compute.plan'
+      }
+    }
+
+    stage('Destroy') {
       when {
         expression { return params.DESTROY == true }
       }
       steps {
-        input message: 'Confirm Terraform destroy?'
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform destroy -var-file=dev.tfvars -auto-approve'
-        }
-      }
-    }
-
-    stage('Workspace Cleanup') {
-      steps {
-        sh 'rm -f tfplan'
+        input message: 'Confirm destroy?'
+        sh 'terraform destroy -var-file=terraform.tfvars -auto-approve'
       }
     }
   }
@@ -158,10 +184,10 @@ pipeline {
       cleanWs()
     }
     success {
-      echo 'Deployment Successful'
+      echo 'Deployment completed successfully.'
     }
     failure {
-      echo 'Deployment Failed'
+      echo 'Deployment failed.'
     }
   }
 }

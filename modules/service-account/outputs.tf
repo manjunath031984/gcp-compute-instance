@@ -1,15 +1,15 @@
-# Outputs for the service account module.
 output "email" {
-  description = "The email address of the service account."
-  value       = local.service_account.email
+  description = "The email address of the created service account."
+  value       = google_service_account.this.email
 }
 
-output "unique_id" {
-  description = "The unique ID of the service account."
-  value       = local.service_account.unique_id
+output "account_id" {
+  description = "The service account ID."
+  value       = google_service_account.this.account_id
 }
 
-output "id" {
-  description = "The fully qualified resource ID of the service account."
-  value       = local.service_account.id
+output "service_account_key" {
+  description = "The generated service account JSON key for the new service account."
+  value       = google_service_account_key.this.private_key
+  sensitive   = true
 }

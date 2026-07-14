@@ -1,153 +1,262 @@
-# terraform-gcp-compute-instance
+# GCP Compute Instance with Terraform and Jenkins CI/CD
 
-This project provisions a production-ready Google Compute Engine instance with a dedicated service account, IAM roles, and Terraform-managed state stored in Google Cloud Storage.
+This repository contains a complete Terraform infrastructure-as-code project for provisioning a Google Cloud Platform (GCP) Compute Engine instance with automated CI/CD using Jenkins.
 
-## Architecture
+## Overview
 
-The solution uses a layered Terraform structure:
+This project demonstrates enterprise-grade infrastructure as code practices with:
 
-- Root module for orchestration and shared values
-- Reusable modules for service account, IAM, and compute instance provisioning
-- Remote state stored in a Google Cloud Storage bucket
-
-## Folder Structure
-
-```text
-terraform-gcp-compute-instance/
-├── Dockerfile
-├── docker-compose.yml
-├── init_create_credentials.groovy
-├── init_create_job.groovy
-├── init_install_plugins.groovy
-├── plugins.txt
-├── versions.tf
-├── provider.tf
-├── remote-state.tf
-├── variables.tf
-├── locals.tf
-├── main.tf
-├── outputs.tf
-├── dev.tfvars
-├── README.md
-├── Jenkinsfile
-└── modules
-    ├── service-account
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   └── outputs.tf
-    ├── iam
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   └── outputs.tf
-    └── compute-instance
-        ├── main.tf
-        ├── variables.tf
-        └── outputs.tf
-```
+- **Modular Terraform Architecture**: Reusable modules for validation, service accounts, IAM, and compute instances
+- **Multi-Environment Support**: Dev, QA, and Production environments using Terraform workspaces
+- **Jenkins CI/CD Pipeline**: Comprehensive pipeline with GCP API enablement, IAM setup, and VM verification
+- **Security Best Practices**: Service account creation, IAM role management, and Shielded VM features
+- **Infrastructure Validation**: Pre and post-deployment verification stages
 
 ## Prerequisites
 
-- Terraform >= 1.13
-- Google Cloud SDK configured with access
-- A service account JSON key file named gcp-sa-key.json
-- Permission to create compute instances, service accounts, IAM bindings, and GCS buckets
+- **GCP Account**: Active Google Cloud Project
+- **Service Account**: GCP service account with appropriate permissions
+- **Jenkins**: Jenkins instance with Terraform and gcloud CLI installed
+- **Terraform**: Version 1.5+
+- **Google Cloud SDK**: Latest version
 
-## Authentication
+## Project Structure
 
-Authentication is performed using the service account JSON key file specified in the provider configuration:
+```
+.
+├── modules/
+│   ├── compute-instance/     # VM instance module
+│   │   ├── main.tf
+│   │   └── variables.tf
+│   ├── iam/                  # IAM roles and bindings
+│   │   ├── main.tf
+│   │   └── variables.tf
+│   ├── service-account/      # Service account creation
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   └── variables.tf
+│   └── validation/           # API and prerequisites validation
+│       ├── main.tf
+│       └── variables.tf
+├── terraform-gcp/            # Terraform working directory
+│   ├── Jenkinsfile           # Jenkins pipeline definition
+│   ├── main.tf               # Root module configuration
+│   ├── variables.tf          # Input variables
+│   ├── outputs.tf            # Output values
+│   ├── providers.tf          # Provider configuration
+│   ├── versions.tf           # Terraform version requirements
+│   ├── backend.tf            # Backend configuration
+│   └── terraform.tfvars      # Variable values
+├── Jenkinsfile               # Root Jenkins pipeline
+├── README.md                 # This file
+├── LICENSE                   # MIT License
+└── .gitignore                # Git ignore rules
+```
+
+## Configuration
+
+### Environment Variables
+
+Set the following environment variables in Jenkins credentials or `.env`:
+
+```bash
+PROJECT_ID=gcp-dev-july-2026
+REGION=us-central1
+ZONE=us-central1-a
+ENVIRONMENT=dev
+BACKEND_BUCKET=gcp-dev-july-2026-terraform-state
+```
+
+### GCP Service Account
+
+Create a service account and download the JSON key file. Store it as a Jenkins credential with ID `gcp-sa-key`.
+
+### Terraform Variables
+
+Update `terraform-gcp/terraform.tfvars` with your specific values:
 
 ```hcl
-provider "google" {
-  credentials = file(var.credentials_file)
-  project     = var.project_id
-  region      = var.region
-  zone        = var.zone
-}
+project_id            = "your-gcp-project-id"
+region                = "us-central1"
+zone                  = "us-central1-a"
+environment           = "dev"
+service_account_name  = "gcp-compute-instance"
+instance_name         = "gcp-compute-instance-dev"
+machine_type          = "e2-medium"
+boot_disk_size_gb     = 50
+image_family          = "ubuntu-2404-lts"
 ```
 
-## Terraform Commands
+## Pipeline Stages
+
+The Jenkins pipeline executes the following stages:
+
+1. **Checkout** - Clone repository from SCM
+2. **Terraform Format** - Validate code formatting
+3. **Terraform Init** - Initialize Terraform with GCS backend
+4. **Terraform Validate** - Validate Terraform configuration
+5. **Enable GCP APIs** - Enable required APIs
+6. **Terraform Plan (IAM)** - Plan service account and IAM roles
+7. **Terraform Apply (IAM)** - Apply service account and IAM roles
+8. **IAM Validation** - Verify service account and roles are created
+9. **Manual Approval** - Require manual approval before VM creation
+10. **Terraform Plan (Compute)** - Plan VM instance creation
+11. **Terraform Apply (Compute)** - Create VM instance
+12. **VM Verification** - Verify VM is running and properly configured
+13. **Terraform Outputs** - Display infrastructure outputs
+14. **Cleanup** - Clean up temporary plan files
+15. **Optional Destroy** - Optionally destroy all infrastructure
+
+## Running the Pipeline
+
+### Jenkins Execution
+
+1. Create a new Pipeline job in Jenkins
+2. Point to this repository's Jenkinsfile
+3. Configure the following parameters:
+   - **ENVIRONMENT**: Select deployment environment (dev, qa, prod)
+   - **DESTROY**: Enable to destroy infrastructure after deployment
+
+4. Execute the build
+
+### Manual Terraform Execution
 
 ```bash
+cd terraform-gcp
+
+# Initialize Terraform
 terraform init
-terraform plan -var-file=dev.tfvars -out=tfplan
-terraform apply -auto-approve tfplan
+
+# Plan infrastructure
+terraform plan -var-file=terraform.tfvars
+
+# Apply infrastructure
+terraform apply -var-file=terraform.tfvars
+
+# View outputs
 terraform output
+
+# Destroy infrastructure
+terraform destroy -var-file=terraform.tfvars
 ```
-
-## Jenkins Pipeline
-
-The repository includes a Declarative Jenkins pipeline that performs formatting, initialization, validation, planning, manual approval, apply, output retrieval, and cleanup.
-
-## Jenkins Docker Deployment
-
-A production-ready Jenkins image can be built using the included `Dockerfile` and `docker-compose.yml`.
-
-1. Build the image:
-
-```bash
-docker build -t jenkins-terraform-gcp:1.1 .
-```
-
-2. Start Jenkins:
-
-```bash
-docker compose up -d
-```
-
-3. Install required plugins using the Jenkins script console or initialization scripts.
-
-4. Create credentials and the pipeline job using the provided Groovy scripts:
-
-```bash
-# Run scripts in Jenkins script console or initialize Groovy jobs on startup.
-```
-
-## Jenkins Initialization Scripts
-
-- `plugins.txt` - Plugin list for Jenkins installation.
-- `init_install_plugins.groovy` - Installs missing plugins automatically.
-- `init_create_credentials.groovy` - Creates GCP and GitHub credentials in Jenkins.
-- `init_create_job.groovy` - Creates the `gcp-compute-instance` pipeline job.
-
-## Module Description
-
-- service-account: Creates a dedicated service account with labels.
-- iam: Grants the required IAM roles to the service account.
-- compute-instance: Provisions the Ubuntu-based virtual machine with startup configuration.
 
 ## Outputs
 
-The root module exposes outputs for the instance name, IDs, IP addresses, and service account email.
+The pipeline provides the following outputs:
+
+- **service_account_email**: Email address of the created service account
+- **service_account_key**: JSON key of the service account (sensitive)
+- **instance_id**: Compute Engine instance ID
+- **instance_name**: Compute Engine instance name
+- **instance_zone**: Zone where instance is deployed
+- **internal_ip**: Internal IP address of the instance
+- **external_ip**: External IP address of the instance
+- **network_interface**: Network interface configuration
+
+## Validation Stages
+
+### Stage 4: IAM Validation
+
+Verifies:
+- ✓ Service Account exists
+- ✓ Service Account key exists
+- ✓ Required IAM roles are attached
+- ✓ Required APIs are enabled
+
+Terminates pipeline immediately if validation fails.
+
+### Stage 6: VM Verification
+
+Verifies:
+- ✓ VM exists
+- ✓ VM status is RUNNING
+- ✓ Correct Service Account attached
+- ✓ External IP assigned
+- ✓ Network Interface configured
+
+## Best Practices Implemented
+
+- **Modular Architecture**: Reusable Terraform modules for each component
+- **Variable Management**: All values externalized as variables
+- **Module Dependencies**: Explicit `depends_on` for module ordering
+- **Code Comments**: Comprehensive comments on all resources
+- **Error Handling**: Explicit error checking and graceful failure
+- **Multi-Environment**: Workspace support for multiple environments
+- **State Management**: Remote state backend in GCS
+- **Security**: Service accounts with minimal required permissions
+- **Validation**: Pre and post-deployment verification
+- **Logging**: Comprehensive Jenkins pipeline logging
+
+## Terraform Best Practices
+
+- Variables and outputs between modules
+- Resource comments explaining purpose
+- Proper resource naming conventions
+- Explicit dependencies with `depends_on`
+- No hardcoded values
+- Type specifications for all variables
+- Meaningful variable descriptions
 
 ## Troubleshooting
 
-- Ensure the service account key file exists and is readable.
-- Verify the target project and billing are enabled.
-- Ensure the state bucket exists and the service account has object admin access to it.
-- Review Terraform plan output carefully before apply.
+### API Not Enabled
 
-### Invalid JWT Signature / oauth2 errors
-
-- If you see errors like `invalid_grant` or `Invalid JWT Signature` when Terraform initializes the GCS backend, the service account key used for authentication is invalid or malformed.
-- Common fixes:
-  - Recreate and download a fresh JSON key from the GCP Console (IAM → Service Accounts → Keys → Create Key → JSON) and replace `gcp-sa-key.json`.
-  - Ensure the `private_key` field begins with `-----BEGIN PRIVATE KEY-----` and ends with `-----END PRIVATE KEY-----` and was not truncated or modified by copy/paste.
-  - Validate the key file locally using the included script:
+If you get an error about an API not being enabled:
 
 ```bash
-python scripts/validate_gcp_key.py gcp-sa-key.json
+gcloud services enable compute.googleapis.com
+gcloud services enable iam.googleapis.com
+gcloud services enable cloudresourcemanager.googleapis.com
 ```
 
-- Recommended Jenkins setup:
-  - Create a Jenkins `File` credential with ID `gcp-sa-key` and upload the JSON key there.
-  - Alternatively, set the environment variable `GCP_SA_KEY_JSON` on the Jenkins master/agent to the full JSON contents (use with care).
+### Service Account Issues
 
-If you prefer not to store a JSON key, consider using Workload Identity or running agents on GCP with attached service accounts.
+Verify service account permissions:
 
-## Best Practices
+```bash
+gcloud iam service-accounts describe gcp-compute-instance@PROJECT_ID.iam.gserviceaccount.com
+gcloud projects get-iam-policy PROJECT_ID --flatten="bindings[].members" --filter="bindings.members:serviceAccount:gcp-compute-instance@PROJECT_ID.iam.gserviceaccount.com"
+```
 
-- Use variables and tfvars for environment-specific values.
-- Keep modules reusable and focused on a single concern.
-- Use labels consistently for governance and cost allocation.
-- Keep dependencies explicit.
-- Validate and format Terraform code before deployment.
+### VM Creation Fails
+
+Check Terraform logs:
+
+```bash
+cd terraform-gcp
+TF_LOG=DEBUG terraform apply -var-file=terraform.tfvars
+```
+
+## Security Considerations
+
+- Service account keys are sensitive - store securely in Jenkins credentials
+- Use Shielded VMs for enhanced security
+- Implement network firewall rules appropriately
+- Regular audit of IAM roles and permissions
+- Keep Terraform state file secure (encrypted in GCS backend)
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues and questions, please create an issue in the repository.
+
+## Author
+
+Created by Manjunath
+
+## Links
+
+- [Terraform Documentation](https://www.terraform.io/docs)
+- [Google Cloud Terraform Provider](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
+- [Jenkins Documentation](https://www.jenkins.io/doc/)
+- [GCP Documentation](https://cloud.google.com/docs)

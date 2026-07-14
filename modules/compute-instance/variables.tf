@@ -1,78 +1,75 @@
-# Variables for the compute instance module.
 variable "project_id" {
-  description = "The Google Cloud project identifier."
+  description = "Google Cloud project ID for the compute instance resources."
   type        = string
 }
 
 variable "region" {
-  description = "The Google Cloud region for the instance."
+  description = "Google Cloud region for regional compute resources."
   type        = string
 }
 
 variable "zone" {
-  description = "The Google Cloud zone for the instance."
+  description = "Google Cloud zone for the compute instance."
   type        = string
 }
 
 variable "instance_name" {
-  description = "Name of the compute instance."
+  description = "The compute instance name."
   type        = string
 }
 
 variable "machine_type" {
-  description = "Machine type of the compute instance."
+  description = "Compute Engine machine type."
   type        = string
 }
 
-variable "boot_disk_size" {
+variable "boot_disk_size_gb" {
   description = "Boot disk size in GB."
   type        = number
 }
 
-variable "image" {
-  description = "Boot disk image to use."
+variable "boot_disk_type" {
+  description = "Boot disk type for the compute instance."
   type        = string
 }
 
-variable "network" {
-  description = "Network to attach the instance to."
+variable "image_family" {
+  description = "Ubuntu image family for the boot disk."
   type        = string
 }
 
-variable "subnetwork" {
-  description = "Subnetwork to attach the instance to."
+variable "network_name" {
+  description = "VPC network name for the compute instance."
+  type        = string
+}
+
+variable "subnetwork_name" {
+  description = "Subnet name for the compute instance."
+  type        = string
+}
+
+variable "subnetwork_ip_cidr" {
+  description = "CIDR range for the compute instance subnet."
+  type        = string
+}
+
+variable "service_account_email" {
+  description = "Service account email attached to the compute instance."
   type        = string
 }
 
 variable "tags" {
-  description = "Network tags for the instance."
+  description = "Network tags assigned to the compute instance."
   type        = list(string)
+}
+
+variable "metadata" {
+  description = "Metadata applied to the compute instance."
+  type        = map(string)
 }
 
 variable "labels" {
   description = "Labels applied to the compute instance."
   type        = map(string)
   default     = {}
-}
-
-variable "service_account_email" {
-  description = "Email address of the service account attached to the instance."
-  type        = string
-}
-
-variable "service_account_scopes" {
-  description = "OAuth scopes assigned to the service account on the instance."
-  type        = list(string)
-}
-
-variable "metadata" {
-  description = "Metadata key/value pairs applied to the instance."
-  type        = map(string)
-  default     = {}
-}
-
-variable "startup_script" {
-  description = "Startup script executed when the instance boots."
-  type        = string
-  default     = ""
 }

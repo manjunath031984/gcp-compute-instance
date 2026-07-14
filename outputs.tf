@@ -1,40 +1,35 @@
-# Output values for the deployed resources.
-output "instance_name" {
-  description = "The name of the compute instance."
-  value       = module.compute_instance.instance_name
-}
-
-output "instance_id" {
-  description = "The generated ID of the compute instance."
-  value       = module.compute_instance.instance_id
-}
-
-output "instance_self_link" {
-  description = "The self link of the compute instance."
-  value       = module.compute_instance.instance_self_link
-}
-
-output "external_ip" {
-  description = "The external IP address assigned to the instance."
-  value       = module.compute_instance.external_ip
-}
-
-output "internal_ip" {
-  description = "The internal IP address assigned to the instance."
-  value       = module.compute_instance.internal_ip
-}
-
 output "service_account_email" {
-  description = "The email address of the service account."
+  description = "Email address of the gcp-compute-instance service account."
   value       = module.service_account.email
 }
 
-output "zone" {
-  description = "The zone where the instance resides."
-  value       = var.zone
+output "service_account_name" {
+  description = "Service account ID created for the deployment."
+  value       = module.service_account.account_id
 }
 
-output "machine_type" {
-  description = "The machine type of the compute instance."
-  value       = var.machine_type
+output "service_account_key" {
+  description = "Generated JSON key for the new service account."
+  value       = module.service_account.service_account_key
+  sensitive   = true
+}
+
+output "instance_name" {
+  description = "Compute Engine instance name."
+  value       = module.compute_instance.name
+}
+
+output "instance_zone" {
+  description = "Compute Engine instance zone."
+  value       = module.compute_instance.zone
+}
+
+output "instance_external_ip" {
+  description = "External IP assigned to the compute instance."
+  value       = module.compute_instance.external_ip
+}
+
+output "service_account_scopes" {
+  description = "OAuth scopes assigned to the compute instance."
+  value       = module.compute_instance.service_account_scopes
 }

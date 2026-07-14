@@ -1,80 +1,148 @@
-# Input variables for the Terraform configuration.
 variable "project_id" {
-  description = "The Google Cloud project identifier."
+  description = "Google Cloud project ID for the deployment."
   type        = string
 }
 
 variable "region" {
-  description = "The default Google Cloud region for resources."
+  description = "Google Cloud region used for regional resources."
   type        = string
+  default     = "us-central1"
 }
 
 variable "zone" {
-  description = "The default Google Cloud zone for zonal resources."
+  description = "Google Cloud zone used for zonal resources."
   type        = string
+  default     = "us-central1-a"
 }
 
-variable "credentials_file" {
-  description = "Path to the service account JSON credentials file."
+variable "environment" {
+  description = "Deployment environment name (dev, qa, prod)."
   type        = string
+  default     = "dev"
+}
+
+variable "backend_bucket" {
+  description = "GCS bucket used for Terraform remote state."
+  type        = string
+  default     = "YOUR_GCP_TF_STATE_BUCKET"
+}
+
+variable "service_account_name" {
+  description = "Name of the service account created for compute instance usage."
+  type        = string
+  default     = "gcp-compute-instance"
 }
 
 variable "instance_name" {
-  description = "Name of the compute instance."
+  description = "Name of the compute engine instance."
   type        = string
   default     = "compute-instance-demo"
 }
 
 variable "machine_type" {
-  description = "Machine type for the compute instance."
+  description = "Compute Engine machine type."
   type        = string
   default     = "e2-medium"
 }
 
-variable "boot_disk_size" {
+variable "boot_disk_size_gb" {
   description = "Boot disk size in GB."
   type        = number
-  default     = 30
+  default     = 50
 }
 
-variable "image" {
-  description = "The disk image to use for the boot disk."
+variable "boot_disk_type" {
+  description = "Boot disk type for the boot disk."
   type        = string
-  default     = "ubuntu-os-cloud/ubuntu-2404-lts-amd64"
+  default     = "pd-ssd"
 }
 
-variable "network" {
-  description = "The network to attach the instance to."
+variable "image_family" {
+  description = "OS image family for the boot disk."
   type        = string
-  default     = "default"
+  default     = "ubuntu-2404-lts"
 }
 
-variable "subnetwork" {
-  description = "The subnetwork to attach the instance to."
+variable "network_name" {
+  description = "Name of the VPC network."
   type        = string
-  default     = "default"
+  default     = "gcp-vpc"
+}
+
+variable "subnetwork_name" {
+  description = "Name of the subnet."
+  type        = string
+  default     = "gcp-subnet"
+}
+
+variable "subnetwork_ip_cidr_range" {
+  description = "CIDR range for the subnet."
+  type        = string
+  default     = "10.10.0.0/24"
+}
+
+variable "firewall_allow_ssh" {
+  description = "Whether SSH access is allowed to the VM."
+  type        = bool
+  default     = true
+}
+
+variable "firewall_allowed_ports" {
+  description = "List of allowed inbound firewall ports."
+  type        = list(number)
+  default     = [22]
 }
 
 variable "tags" {
-  description = "Network tags applied to the compute instance."
+  description = "Network tags assigned to the compute instance."
   type        = list(string)
-  default     = ["ssh", "http", "https"]
+  default     = ["ssh"]
 }
 
-variable "labels" {
-  description = "Additional labels applied to the managed resources."
+variable "metadata" {
+  description = "Metadata applied to the compute instance."
   type        = map(string)
-  default     = {}
+  default = {
+    enable-oslogin = "TRUE"
+  }
 }
 
-variable "service_account_name" {
-  description = "Name of the service account used by the compute instance."
-  type        = string
-  default     = "gcp-compute-instance"
+variable "required_apis" {
+  description = "APIs that must be enabled prior to resource creation."
+  type        = list(string)
+  default = [
+    "compute.googleapis.com",
+    "iam.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "serviceusage.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
+  ]
 }
 
-variable "use_existing_service_account" {
-  description = "If true, use an existing service account with the given name instead of creating a new one."
-  type        = bool
-  default     = false
+variable "required_roles" {
+  description = "IAM roles to assign to the compute service account."
+  type        = list(string)
+  default = [
+    "roles/compute.admin",
+    "roles/compute.instanceAdmin.v1",
+    "roles/iam.serviceAccountUser",
+    "roles/iam.serviceAccountTokenCreator",
+    "roles/storage.admin",
+    "roles/storage.objectAdmin",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/compute.networkAdmin",
+    "roles/compute.securityAdmin",
+    "roles/serviceusage.serviceUsageAdmin",
+  ]
+}
+
+variable "project_labels" {
+  description = "Labels for GCP resources in this environment."
+  type        = map(string)
+  default = {
+    environment = "dev"
+    owner       = "platform"
+  }
 }

@@ -1,21 +1,20 @@
-# Variables for the IAM module.
 variable "project_id" {
-  description = "The Google Cloud project identifier."
+  description = "Google Cloud project ID where IAM roles are assigned."
   type        = string
 }
 
 variable "service_account_email" {
-  description = "The service account email address to receive the roles."
+  description = "Email of the service account to bind IAM roles to."
   type        = string
 }
 
-variable "roles" {
-  description = "List of IAM roles to assign to the service account."
+variable "required_roles" {
+  description = "List of IAM roles to attach to the service account."
   type        = list(string)
 }
 
 variable "labels" {
-  description = "Labels applied to IAM resources where supported."
+  description = "Labels to annotate IAM resources where supported."
   type        = map(string)
   default     = {}
 }

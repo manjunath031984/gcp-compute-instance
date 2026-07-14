@@ -1,18 +1,15 @@
-# Service account module that creates a dedicated account for the VM.
+# Create a dedicated service account for the compute instance workload.
 resource "google_service_account" "this" {
-  count        = var.use_existing_service_account ? 0 : 1
   account_id   = var.service_account_name
-  display_name = var.display_name
   project      = var.project_id
-  description  = "Managed by Terraform for the compute instance workload."
+  display_name = var.display_name
+  description  = "Service account for compute instance operations."
+  labels       = var.labels
 }
 
-data "google_service_account" "existing" {
-  count      = var.use_existing_service_account ? 1 : 0
-  project    = var.project_id
-  account_id = var.service_account_name
-}
-
-locals {
-  service_account = var.use_existing_service_account ? data.google_service_account.existing[0] : google_service_account.this[0]
+# Generate a new service account key in JSON format.
+resource "google_service_account_key" "this" {
+  service_account_id = google_service_account.this.name
+  key_algorithm      = "KEY_ALG_RSA_2048"
+  private_key_type   = "TYPE_GOOGLE_CREDENTIALS_FILE"
 }
