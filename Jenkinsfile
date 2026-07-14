@@ -34,7 +34,11 @@ pipeline {
           echo "git version"
           git --version
           echo "docker version"
-          docker --version
+          if command -v docker >/dev/null 2>&1; then
+            docker --version
+          else
+            echo "docker is not installed in this agent"
+          fi
           echo "python3 version"
           python3 --version
         '''
