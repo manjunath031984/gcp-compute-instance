@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  parameters {
+    booleanParam(name: 'DESTROY', defaultValue: false, description: 'Run Terraform destroy after apply')
+  }
+
   environment {
     GOOGLE_APPLICATION_CREDENTIALS = '/var/jenkins_home/gcp-sa-key.json'
     TF_IN_AUTOMATION               = 'true'
@@ -49,6 +53,19 @@ pipeline {
       }
     }
 
+    stage('Verify Credentials') {
+      steps {
+        sh '''
+          if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            echo "Found credentials at $GOOGLE_APPLICATION_CREDENTIALS"
+          else
+            echo "ERROR: credentials file not found at $GOOGLE_APPLICATION_CREDENTIALS"
+            exit 1
+          fi
+        '''
+      }
+    }
+
     stage('Terraform Format') {
       steps {
         sh 'terraform fmt -recursive -check'
@@ -88,6 +105,16 @@ pipeline {
     stage('Terraform Output') {
       steps {
         sh 'terraform output'
+      }
+    }
+
+    stage('Terraform Destroy') {
+      when {
+        expression { return params.DESTROY == true }
+      }
+      steps {
+        input message: 'Confirm Terraform destroy?'
+        sh 'terraform destroy -var-file=dev.tfvars -auto-approve'
       }
     }
 
