@@ -40,9 +40,34 @@ pipeline {
                 export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
                 mkdir -p "$CLOUDSDK_CONFIG"
 
+            python3 - <<'PY'
+    import json
+    import os
+
+    key_path = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+    with open(key_path, 'r', encoding='utf-8') as key_file:
+      key = json.load(key_file)
+
+    required = ['type', 'private_key_id', 'private_key', 'client_email', 'token_uri']
+    missing = [name for name in required if not key.get(name)]
+    if missing:
+      raise SystemExit('Jenkins credential is missing required JSON key fields: ' + ', '.join(missing))
+
+    if key['type'] != 'service_account':
+      raise SystemExit('Jenkins credential is not a service account JSON key file.')
+
+    print('Credential metadata:')
+    print('  client_email = ' + key['client_email'])
+    print('  private_key_id = ' + key['private_key_id'])
+    PY
+
                 echo "Activating GCP Service Account..."
-                gcloud auth activate-service-account \
-                    --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            if ! gcloud auth activate-service-account \
+              --key-file="$GOOGLE_APPLICATION_CREDENTIALS"; then
+              echo "GCP authentication failed. The Jenkins Secret File credential '$GCP_SA_CREDENTIAL_ID' is likely stale, revoked, or uploaded with corrupted JSON/key material."
+              echo "Re-upload a fresh JSON key for infra-admin@gcp-dev-july-2026.iam.gserviceaccount.com to Jenkins and rerun the job."
+              exit 1
+            fi
 
                 echo "Setting GCP Project..."
                 gcloud config set project "$PROJECT_ID"
