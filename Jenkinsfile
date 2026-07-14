@@ -72,7 +72,7 @@ pipeline {
     stage('Terraform Init') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform init'
+          sh 'terraform init -backend-config="credentials=$GOOGLE_APPLICATION_CREDENTIALS"'
         }
       }
     }
