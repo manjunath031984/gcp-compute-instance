@@ -1,0 +1,21 @@
+# Terraform local directories and state files
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+tfplan
+
+# Local credentials and secrets
+*.json
+!README.md
+!Jenkinsfile
+!versions.tf
+!provider.tf
+!gcs-backend.tf
+!remote-state.tf
+!variables.tf
+!locals.tf
+!main.tf
+!outputs.tf
+!dev.tfvars
+!modules/**
