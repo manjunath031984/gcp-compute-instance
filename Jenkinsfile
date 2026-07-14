@@ -63,6 +63,27 @@ pipeline {
       }
     }
 
+    stage('Prepare GCP Service Account') {
+      steps {
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          script {
+            env.SERVICE_ACCOUNT_EMAIL = "gcp-compute-instance@${env.PROJECT_ID}.iam.gserviceaccount.com"
+            def exists = sh(script: '''
+              set -e
+              gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+              if gcloud iam service-accounts describe "$SERVICE_ACCOUNT_EMAIL" --project="$PROJECT_ID" >/dev/null 2>&1; then
+                echo true
+              else
+                echo false
+              fi
+            ''', returnStdout: true).trim()
+            env.USE_EXISTING_SERVICE_ACCOUNT = exists
+            echo "Using existing service account: ${exists}"
+          }
+        }
+      }
+    }
+
     stage('Terraform Format') {
       steps {
         sh 'terraform fmt -recursive -check'
@@ -80,7 +101,7 @@ pipeline {
     stage('Terraform Validate') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform validate'
+          sh 'terraform validate -var="use_existing_service_account=${USE_EXISTING_SERVICE_ACCOUNT}"'
         }
       }
     }
@@ -88,7 +109,7 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh 'terraform plan -var-file=dev.tfvars -out=tfplan'
+          sh 'terraform plan -var-file=dev.tfvars -var="use_existing_service_account=${USE_EXISTING_SERVICE_ACCOUNT}" -out=tfplan'
         }
       }
     }
