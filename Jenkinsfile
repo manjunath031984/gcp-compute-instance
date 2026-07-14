@@ -40,7 +40,11 @@ pipeline {
             echo "docker is not installed in this agent"
           fi
           echo "python3 version"
-          python3 --version
+          if command -v python3 >/dev/null 2>&1; then
+            python3 --version
+          else
+            echo "python3 is not installed in this agent"
+          fi
         '''
       }
     }
