@@ -16,6 +16,7 @@ RUN apt-get update && \
       python3 \
       python3-pip \
       docker.io \
+      docker-compose-plugin \
       jq \
       zip \
       unzip \
