@@ -2,7 +2,20 @@ pipeline {
   agent any
 
   environment {
-    TF_IN_AUTOMATION = 'true'
+    GOOGLE_APPLICATION_CREDENTIALS = '/var/jenkins_home/gcp-sa-key.json'
+    TF_IN_AUTOMATION               = 'true'
+    TF_INPUT                       = 'false'
+    TF_LOG                         = 'INFO'
+    PROJECT_ID                     = 'gcp-dev-july-2026'
+    REGION                         = 'us-central1'
+    ZONE                           = 'us-central1-a'
+  }
+
+  options {
+    disableConcurrentBuilds()
+    timestamps()
+    ansiColor('xterm')
+    buildDiscarder(logRotator(numToKeepStr: '5'))
   }
 
   stages {
@@ -12,15 +25,26 @@ pipeline {
       }
     }
 
-    stage('Terraform Version') {
+    stage('Verify Tools') {
       steps {
-        sh 'terraform version'
+        sh '''
+          echo "terraform version"
+          terraform version
+          echo "gcloud version"
+          gcloud version
+          echo "git version"
+          git --version
+          echo "docker version"
+          docker --version
+          echo "python3 version"
+          python3 --version
+        '''
       }
     }
 
     stage('Terraform Format') {
       steps {
-        sh 'terraform fmt -check -recursive'
+        sh 'terraform fmt -recursive -check'
       }
     }
 
@@ -54,20 +78,28 @@ pipeline {
       }
     }
 
-    stage('Outputs') {
+    stage('Terraform Output') {
       steps {
         sh 'terraform output'
+      }
+    }
+
+    stage('Workspace Cleanup') {
+      steps {
+        sh 'rm -f tfplan'
       }
     }
   }
 
   post {
     always {
-      echo 'Workspace cleanup complete.'
-      sh 'rm -f tfplan'
+      cleanWs()
+    }
+    success {
+      echo 'Deployment Successful'
     }
     failure {
-      echo 'Pipeline failed. Review the logs for details.'
+      echo 'Deployment Failed'
     }
   }
 }

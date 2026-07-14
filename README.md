@@ -14,6 +14,12 @@ The solution uses a layered Terraform structure:
 
 ```text
 terraform-gcp-compute-instance/
+├── Dockerfile
+├── docker-compose.yml
+├── init_create_credentials.groovy
+├── init_create_job.groovy
+├── init_install_plugins.groovy
+├── plugins.txt
 ├── versions.tf
 ├── provider.tf
 ├── remote-state.tf
@@ -71,6 +77,37 @@ terraform output
 ## Jenkins Pipeline
 
 The repository includes a Declarative Jenkins pipeline that performs formatting, initialization, validation, planning, manual approval, apply, output retrieval, and cleanup.
+
+## Jenkins Docker Deployment
+
+A production-ready Jenkins image can be built using the included `Dockerfile` and `docker-compose.yml`.
+
+1. Build the image:
+
+```bash
+docker build -t jenkins-terraform-gcp:1.1 .
+```
+
+2. Start Jenkins:
+
+```bash
+docker compose up -d
+```
+
+3. Install required plugins using the Jenkins script console or initialization scripts.
+
+4. Create credentials and the pipeline job using the provided Groovy scripts:
+
+```bash
+# Run scripts in Jenkins script console or initialize Groovy jobs on startup.
+```
+
+## Jenkins Initialization Scripts
+
+- `plugins.txt` - Plugin list for Jenkins installation.
+- `init_install_plugins.groovy` - Installs missing plugins automatically.
+- `init_create_credentials.groovy` - Creates GCP and GitHub credentials in Jenkins.
+- `init_create_job.groovy` - Creates the `gcp-compute-instance` pipeline job.
 
 ## Module Description
 
