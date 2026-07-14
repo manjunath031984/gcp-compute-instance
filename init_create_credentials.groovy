@@ -19,19 +19,33 @@ def store = provider.getStore()
 Domain domain = Domain.global()
 
 Path gcpKeyPath = Paths.get('/var/jenkins_home/gcp-sa-key.json')
-if (!Files.exists(gcpKeyPath)) {
-  throw new FileNotFoundException("GCP service account key not found at ${gcpKeyPath}")
+String gcpKeyContent = null
+if (Files.exists(gcpKeyPath)) {
+  gcpKeyContent = new String(Files.readAllBytes(gcpKeyPath), 'UTF-8')
+} else {
+  // Fallback: allow supplying the service account JSON via environment variable
+  String envKey = System.getenv('GCP_SA_KEY_JSON')
+  if (envKey != null && envKey.trim().length() > 0) {
+    gcpKeyContent = envKey
+    println("Loaded GCP service account key from GCP_SA_KEY_JSON environment variable")
+  } else {
+    println("WARNING: GCP service account key not found at ${gcpKeyPath} and GCP_SA_KEY_JSON is not set. Skipping GCP credential creation.")
+  }
 }
 
-String gcpKeyContent = new String(Files.readAllBytes(gcpKeyPath), 'UTF-8')
+if (gcpKeyContent) {
+  FileCredentialsImpl gcpCredential = new FileCredentialsImpl(
+    CredentialsScope.GLOBAL,
+    'gcp-sa-key',
+    'Google Cloud Service Account JSON Key',
+    'gcp-sa-key.json',
+    gcpKeyContent
+  )
 
-FileCredentialsImpl gcpCredential = new FileCredentialsImpl(
-  CredentialsScope.GLOBAL,
-  'gcp-sa-key',
-  'Google Cloud Service Account JSON Key',
-  'gcp-sa-key.json',
-  gcpKeyContent
-)
+  addOrUpdateCredential(gcpCredential)
+} else {
+  println('Skipping creation of GCP file credential: no key material available.')
+}
 
 UsernamePasswordCredentialsImpl githubCredentials = new UsernamePasswordCredentialsImpl(
   CredentialsScope.GLOBAL,

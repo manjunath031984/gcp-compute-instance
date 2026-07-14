@@ -126,6 +126,24 @@ The root module exposes outputs for the instance name, IDs, IP addresses, and se
 - Ensure the state bucket exists and the service account has object admin access to it.
 - Review Terraform plan output carefully before apply.
 
+### Invalid JWT Signature / oauth2 errors
+
+- If you see errors like `invalid_grant` or `Invalid JWT Signature` when Terraform initializes the GCS backend, the service account key used for authentication is invalid or malformed.
+- Common fixes:
+  - Recreate and download a fresh JSON key from the GCP Console (IAM → Service Accounts → Keys → Create Key → JSON) and replace `gcp-sa-key.json`.
+  - Ensure the `private_key` field begins with `-----BEGIN PRIVATE KEY-----` and ends with `-----END PRIVATE KEY-----` and was not truncated or modified by copy/paste.
+  - Validate the key file locally using the included script:
+
+```bash
+python scripts/validate_gcp_key.py gcp-sa-key.json
+```
+
+- Recommended Jenkins setup:
+  - Create a Jenkins `File` credential with ID `gcp-sa-key` and upload the JSON key there.
+  - Alternatively, set the environment variable `GCP_SA_KEY_JSON` on the Jenkins master/agent to the full JSON contents (use with care).
+
+If you prefer not to store a JSON key, consider using Workload Identity or running agents on GCP with attached service accounts.
+
 ## Best Practices
 
 - Use variables and tfvars for environment-specific values.
