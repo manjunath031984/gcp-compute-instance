@@ -3,6 +3,10 @@ pipeline {
 
   parameters {
     booleanParam(name: 'DESTROY', defaultValue: false, description: 'Run Terraform destroy after apply')
+    booleanParam(name: 'ROTATE_GCP_CREDENTIAL', defaultValue: false, description: 'Rotate the GCP service account key and update the Jenkins file credential before deployment')
+    string(name: 'GCP_SA_CREDENTIAL_ID', defaultValue: 'gcp-service-account-key', description: 'Jenkins Secret File credential ID for the GCP service account JSON key')
+    string(name: 'JENKINS_API_CREDENTIAL_ID', defaultValue: 'jenkins-api-user', description: 'Jenkins username/password credential ID used only when rotating the GCP credential')
+    string(name: 'JENKINS_URL_CREDENTIAL_ID', defaultValue: 'jenkins-url', description: 'Jenkins string credential ID for the base Jenkins URL used only when rotating the GCP credential')
   }
 
   environment {
@@ -30,10 +34,13 @@ pipeline {
     }
 
     stage('Setup GCP Authentication') {
+      when {
+        expression { return params.ROTATE_GCP_CREDENTIAL == true }
+      }
       steps {
         withCredentials([
-          usernamePassword(credentialsId: 'jenkins-api-user', usernameVariable: 'JENKINS_USERNAME', passwordVariable: 'JENKINS_API_TOKEN'),
-          string(credentialsId: 'jenkins-url', variable: 'JENKINS_URL')
+          usernamePassword(credentialsId: params.JENKINS_API_CREDENTIAL_ID, usernameVariable: 'JENKINS_USERNAME', passwordVariable: 'JENKINS_API_TOKEN'),
+          string(credentialsId: params.JENKINS_URL_CREDENTIAL_ID, variable: 'JENKINS_URL')
         ]) {
           sh '''
             set -e
@@ -47,7 +54,7 @@ pipeline {
 
        stage('Authenticate to GCP') {
       steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+        withCredentials([file(credentialsId: params.GCP_SA_CREDENTIAL_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
             export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
@@ -75,7 +82,7 @@ pipeline {
 
     stage('Terraform Init') {
       steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+        withCredentials([file(credentialsId: params.GCP_SA_CREDENTIAL_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh 'terraform init -backend-config="bucket=$BACKEND_BUCKET" -backend-config="prefix=${ENVIRONMENT}/terraform" -backend-config="credentials=$GOOGLE_APPLICATION_CREDENTIALS"'
         }
       }
