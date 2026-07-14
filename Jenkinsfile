@@ -4,7 +4,7 @@ pipeline {
   parameters {
     booleanParam(name: 'DESTROY', defaultValue: false, description: 'Run Terraform destroy after apply')
     booleanParam(name: 'ROTATE_GCP_CREDENTIAL', defaultValue: false, description: 'Rotate the GCP service account key and update the Jenkins file credential before deployment')
-    string(name: 'GCP_SA_CREDENTIAL_ID', defaultValue: 'gcp-service-account-key', description: 'Jenkins Secret File credential ID for the GCP service account JSON key')
+    string(name: 'GCP_SA_CREDENTIAL_ID', defaultValue: 'gcp-sa-key', description: 'Jenkins Secret File credential ID for the GCP service account JSON key')
     string(name: 'JENKINS_API_CREDENTIAL_ID', defaultValue: 'jenkins-api-user', description: 'Jenkins username/password credential ID used only when rotating the GCP credential')
     string(name: 'JENKINS_URL_CREDENTIAL_ID', defaultValue: 'jenkins-url', description: 'Jenkins string credential ID for the base Jenkins URL used only when rotating the GCP credential')
   }
@@ -46,6 +46,7 @@ pipeline {
             set -e
             chmod +x scripts/setup-gcp-service-account.sh
             export GOOGLE_CLOUD_PROJECT="$PROJECT_ID"
+            export JENKINS_CREDENTIAL_ID="$GCP_SA_CREDENTIAL_ID"
             scripts/setup-gcp-service-account.sh
           '''
         }

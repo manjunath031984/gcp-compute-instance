@@ -69,7 +69,7 @@ BACKEND_BUCKET=gcp-dev-july-2026-terraform-state
 
 ### GCP Service Account
 
-Create a service account and download the JSON key file. Store it as a Jenkins credential with ID `gcp-service-account-key`.
+Create a service account and download the JSON key file. Store it as a Jenkins credential with ID `gcp-sa-key` unless you override `GCP_SA_CREDENTIAL_ID` in the Jenkins job.
 
 ### Jenkins Variables for GCP Auth Automation
 
@@ -127,7 +127,7 @@ This repository includes [scripts/setup-gcp-service-account.sh](scripts/setup-gc
 
 - Project: `gcp-dev-july-2026`
 - Service account: `infra-admin@gcp-dev-july-2026.iam.gserviceaccount.com`
-- Jenkins credential ID: `gcp-service-account-key`
+- Jenkins credential ID: value of `JENKINS_CREDENTIAL_ID` or `gcp-sa-key` by default
 
 The script is idempotent and safe for repeated execution.
 
@@ -140,7 +140,7 @@ The script is idempotent and safe for repeated execution.
 5. Deletes all old user-managed keys and creates exactly one new JSON key
 6. Validates the new key by activating it and checking project + storage access
 7. Backs up existing Jenkins credential (if present) under `backup/`
-8. Creates or replaces Jenkins Secret File credential `gcp-service-account-key`
+8. Creates or replaces the Jenkins Secret File credential selected by `JENKINS_CREDENTIAL_ID`
 9. Verifies credential exists in Jenkins
 10. Removes temporary key files securely
 
@@ -151,19 +151,19 @@ The script is idempotent and safe for repeated execution.
 - `python3`
 - `curl`
 - Jenkins credentials plugin with Secret File support
-- Jenkins Secret File credential `gcp-service-account-key` available to the pipeline
+- Jenkins Secret File credential `gcp-sa-key` available to the pipeline, unless you set a different `GCP_SA_CREDENTIAL_ID`
 - Jenkins credentials configured only if you enable credential rotation in the pipeline:
    - `jenkins-api-user` (Username with API token as password)
    - `jenkins-url` (String containing base Jenkins URL)
 
 ### Jenkins Pipeline Parameters
 
-- `GCP_SA_CREDENTIAL_ID` defaults to `gcp-service-account-key`
+- `GCP_SA_CREDENTIAL_ID` defaults to `gcp-sa-key`
 - `ROTATE_GCP_CREDENTIAL` defaults to `false`
 - `JENKINS_API_CREDENTIAL_ID` defaults to `jenkins-api-user`
 - `JENKINS_URL_CREDENTIAL_ID` defaults to `jenkins-url`
 
-Normal Terraform runs only require the GCP file credential. Enable `ROTATE_GCP_CREDENTIAL` when you want the pipeline to regenerate the service account key and upsert the Jenkins credential through the Jenkins REST API.
+Normal Terraform runs only require the GCP file credential. Enable `ROTATE_GCP_CREDENTIAL` when you want the pipeline to regenerate the service account key and upsert the same Jenkins credential ID through the Jenkins REST API.
 
 ### Required IAM Permissions
 
@@ -191,7 +191,7 @@ export GOOGLE_CLOUD_PROJECT="gcp-dev-july-2026"
 - Confirmation of project and service account state
 - IAM role assignment status per role
 - Jenkins credential backup path when existing credential is found
-- Final verification message for credential `gcp-service-account-key`
+- Final verification message for the selected Jenkins credential ID
 
 ### Rollback Procedure
 
@@ -205,7 +205,7 @@ If Jenkins credential update needs rollback:
 If GCP key rotation needs rollback:
 
 1. Generate a replacement key manually for `infra-admin`
-2. Upload the key to Jenkins credential `gcp-service-account-key`
+2. Upload the key to the Jenkins credential referenced by `GCP_SA_CREDENTIAL_ID`
 3. Validate with `gcloud auth activate-service-account --key-file=<key.json>`
 
 ### Troubleshooting

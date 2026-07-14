@@ -13,7 +13,7 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly DEFAULT_PROJECT_ID="gcp-dev-july-2026"
 readonly DEFAULT_SA_NAME="infra-admin"
 readonly DEFAULT_SA_EMAIL="infra-admin@gcp-dev-july-2026.iam.gserviceaccount.com"
-readonly DEFAULT_JENKINS_CREDENTIAL_ID="gcp-service-account-key"
+readonly DEFAULT_JENKINS_CREDENTIAL_ID="gcp-sa-key"
 readonly DEFAULT_JENKINS_CREDENTIAL_DESC="GCP Service Account JSON Key"
 readonly REQUIRED_ROLES=(
   "roles/compute.admin"
