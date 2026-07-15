@@ -83,6 +83,10 @@ pipeline {
                 --uniform-bucket-level-access
             fi
 
+            # Ensure versioning is enabled regardless of whether the bucket
+            # was just created or already existed, so state history is preserved.
+            gcloud storage buckets update "gs://$BACKEND_BUCKET" --versioning
+
             # Ensure Terraform runner can list/read/write state objects.
             gcloud storage buckets add-iam-policy-binding "gs://$BACKEND_BUCKET" \
               --member="serviceAccount:$ACTIVE_SA" \
