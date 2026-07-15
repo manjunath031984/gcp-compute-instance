@@ -21,6 +21,7 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
+        deleteDir()
         checkout scm
       }
     }
@@ -62,13 +63,17 @@ pipeline {
           sh '''
             set -e
 
-            # Use JSON content for backend auth to avoid temp file path resolution issues.
-            [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]
-            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
-            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud config set project "$PROJECT_ID"
+
+            ACCESS_TOKEN="$(gcloud auth print-access-token)"
+            export GOOGLE_OAUTH_ACCESS_TOKEN="$ACCESS_TOKEN"
 
             terraform init \
               -reconfigure \
+              -backend-config="access_token=$ACCESS_TOKEN" \
               -backend-config="bucket=$BACKEND_BUCKET" \
               -backend-config="prefix=${ENVIRONMENT}/terraform"
           '''
@@ -81,8 +86,11 @@ pipeline {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
-            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
-            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud config set project "$PROJECT_ID"
+            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
             terraform validate
           '''
         }
@@ -97,8 +105,12 @@ pipeline {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
-            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
-            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud config set project "$PROJECT_ID"
+            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
+            rm -f tfplan
             terraform plan -var-file=terraform.tfvars -out=tfplan
           '''
         }
@@ -113,8 +125,11 @@ pipeline {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
-            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
-            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud config set project "$PROJECT_ID"
+            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
             terraform apply -auto-approve tfplan
           '''
         }
@@ -129,8 +144,11 @@ pipeline {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
-            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
-            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+            gcloud config set project "$PROJECT_ID"
+            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
             terraform destroy -var-file=terraform.tfvars -auto-approve
           '''
         }
