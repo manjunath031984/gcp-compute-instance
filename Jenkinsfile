@@ -58,7 +58,7 @@ pipeline {
       }
     }
 
-    stage('Ensure Backend Bucket Access') {
+    stage('Verify Backend Bucket Access') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
@@ -69,29 +69,13 @@ pipeline {
             gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
             gcloud config set project "$PROJECT_ID"
 
-            ACTIVE_SA="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n 1)"
-            if [ -z "$ACTIVE_SA" ]; then
-              echo "ERROR: No active service account found after authentication"
+            echo "Verifying access to existing backend bucket gs://$BACKEND_BUCKET ..."
+            if ! gcloud storage buckets describe "gs://$BACKEND_BUCKET" >/dev/null 2>&1; then
+              echo "ERROR: Cannot access gs://$BACKEND_BUCKET. Ensure the bucket already exists and the service account has the required storage IAM roles (e.g. roles/storage.objectAdmin)."
               exit 1
             fi
 
-            if ! gcloud storage buckets describe "gs://$BACKEND_BUCKET" >/dev/null 2>&1; then
-              echo "Backend bucket not accessible; attempting to create gs://$BACKEND_BUCKET in $PROJECT_ID"
-              gcloud storage buckets create "gs://$BACKEND_BUCKET" \
-                --project="$PROJECT_ID" \
-                --location="US" \
-                --uniform-bucket-level-access
-            fi
-
-            # Ensure versioning is enabled regardless of whether the bucket
-            # was just created or already existed, so state history is preserved.
-            gcloud storage buckets update "gs://$BACKEND_BUCKET" --versioning
-
-            # Ensure Terraform runner can list/read/write state objects.
-            gcloud storage buckets add-iam-policy-binding "gs://$BACKEND_BUCKET" \
-              --member="serviceAccount:$ACTIVE_SA" \
-              --role="roles/storage.objectAdmin" \
-              --quiet
+            echo "Backend bucket is accessible."
           '''
         }
       }
