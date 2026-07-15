@@ -96,7 +96,7 @@ service_account_name  = "gcp-compute-instance"
 instance_name         = "gcp-compute-instance-dev"
 machine_type          = "e2-medium"
 boot_disk_size_gb     = 50
-image_family          = "ubuntu-2404-lts"
+image_family          = "ubuntu-2404-lts-amd64"
 ```
 
 ## Pipeline Stages

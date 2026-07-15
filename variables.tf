@@ -60,7 +60,7 @@ variable "boot_disk_type" {
 variable "image_family" {
   description = "OS image family for the boot disk."
   type        = string
-  default     = "ubuntu-2404-lts"
+  default     = "ubuntu-2404-lts-amd64"
 }
 
 variable "network_name" {
