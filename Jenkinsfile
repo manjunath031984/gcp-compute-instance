@@ -58,6 +58,41 @@ pipeline {
       }
     }
 
+    // stage('Ensure Backend Bucket Access') {
+    //   steps {
+    //     withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+    //       sh '''
+    //         set -e
+
+    //         export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
+    //         mkdir -p "$CLOUDSDK_CONFIG"
+    //         gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+    //         gcloud config set project "$PROJECT_ID"
+
+    //         ACTIVE_SA="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n 1)"
+    //         if [ -z "$ACTIVE_SA" ]; then
+    //           echo "ERROR: No active service account found after authentication"
+    //           exit 1
+    //         fi
+
+    //         if ! gcloud storage buckets describe "gs://$BACKEND_BUCKET" >/dev/null 2>&1; then
+    //           echo "Backend bucket not accessible; attempting to create gs://$BACKEND_BUCKET in $PROJECT_ID"
+    //           gcloud storage buckets create "gs://$BACKEND_BUCKET" \
+    //             --project="$PROJECT_ID" \
+    //             --location="US" \
+    //             --uniform-bucket-level-access
+    //         fi
+
+    //         # Ensure Terraform runner can list/read/write state objects.
+    //         gcloud storage buckets add-iam-policy-binding "gs://$BACKEND_BUCKET" \
+    //           --member="serviceAccount:$ACTIVE_SA" \
+    //           --role="roles/storage.objectAdmin" \
+    //           --quiet
+    //       '''
+    //     }
+    //   }
+    // }
+
     stage('Terraform Init') {
       steps {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
