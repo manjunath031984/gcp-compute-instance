@@ -61,10 +61,14 @@ pipeline {
         withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
           sh '''
             set -e
+
+            # Use JSON content for backend auth to avoid temp file path resolution issues.
+            [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]
+            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
+
             terraform init \
               -backend-config="bucket=$BACKEND_BUCKET" \
-              -backend-config="prefix=${ENVIRONMENT}/terraform" \
-              -backend-config="credentials=$GOOGLE_APPLICATION_CREDENTIALS"
+              -backend-config="prefix=${ENVIRONMENT}/terraform"
           '''
         }
       }
