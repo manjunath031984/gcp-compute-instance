@@ -60,3 +60,4 @@ compute.plan
 credentials.json
 service-account.json
 gcp-sa-key.json
+gcp-sa-key

@@ -65,8 +65,10 @@ pipeline {
             # Use JSON content for backend auth to avoid temp file path resolution issues.
             [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]
             export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
+            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
 
             terraform init \
+              -reconfigure \
               -backend-config="bucket=$BACKEND_BUCKET" \
               -backend-config="prefix=${ENVIRONMENT}/terraform"
           '''
@@ -76,7 +78,14 @@ pipeline {
 
     stage('Terraform Validate') {
       steps {
-        sh 'terraform validate'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh '''
+            set -e
+            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
+            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            terraform validate
+          '''
+        }
       }
     }
 
@@ -85,7 +94,14 @@ pipeline {
         expression { return params.DESTROY == false }
       }
       steps {
-        sh 'terraform plan -var-file=terraform.tfvars -out=tfplan'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh '''
+            set -e
+            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
+            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            terraform plan -var-file=terraform.tfvars -out=tfplan
+          '''
+        }
       }
     }
 
@@ -94,7 +110,14 @@ pipeline {
         expression { return params.DESTROY == false }
       }
       steps {
-        sh 'terraform apply -auto-approve tfplan'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh '''
+            set -e
+            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
+            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            terraform apply -auto-approve tfplan
+          '''
+        }
       }
     }
 
@@ -103,7 +126,14 @@ pipeline {
         expression { return params.DESTROY == true }
       }
       steps {
-        sh 'terraform destroy -var-file=terraform.tfvars -auto-approve'
+        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+          sh '''
+            set -e
+            export GOOGLE_BACKEND_CREDENTIALS="$(cat "$GOOGLE_APPLICATION_CREDENTIALS")"
+            export GOOGLE_CREDENTIALS="$GOOGLE_BACKEND_CREDENTIALS"
+            terraform destroy -var-file=terraform.tfvars -auto-approve
+          '''
+        }
       }
     }
   }
