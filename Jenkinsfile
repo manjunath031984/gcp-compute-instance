@@ -1,189 +1,221 @@
 pipeline {
-  agent any
+    agent any
 
-  parameters {
-    booleanParam(name: 'DESTROY', defaultValue: false, description: 'Run terraform destroy instead of apply')
-  }
-
-  environment {
-    TF_IN_AUTOMATION = 'true'
-    TF_INPUT         = 'false'
-    PROJECT_ID       = 'gcp-dev-july-2026'
-    ENVIRONMENT      = 'dev'
-    BACKEND_BUCKET   = 'gcp-dev-july-2026-terraform-state'
-  }
-
-  options {
-    disableConcurrentBuilds()
-    timestamps()
-    buildDiscarder(logRotator(numToKeepStr: '5'))
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        deleteDir()
-        checkout scm
-      }
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timeout(time: 60, unit: 'MINUTES')
     }
 
-    stage('Authenticate to GCP') {
-      steps {
-        withCredentials([
-            file(
-                credentialsId: 'gcp-sa-key',
-                variable: 'GOOGLE_APPLICATION_CREDENTIALS'
-            )
-        ]) {
-            sh '''
-                set -e
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['apply', 'destroy'],
+            description: 'Select whether to apply or destroy the Terraform-managed infrastructure.'
+        )
+        string(
+            name: 'TF_WORKING_DIR',
+            defaultValue: '.',
+            description: 'Relative path to the Terraform root module.'
+        )
+        string(
+            name: 'VAR_FILE',
+            defaultValue: 'terraform.tfvars',
+            description: 'Terraform var file to use for plan/apply/destroy.'
+        )
+    }
 
-                export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-                mkdir -p "$CLOUDSDK_CONFIG"
+    environment {
+        GOOGLE_CLOUD_PROJECT = 'gcp-dev-july-2026'
+        REGION               = 'us-central1'
+        ZONE                 = 'us-central1-a'
+        TF_VERSION           = '1.13.0'
+        TF_IN_AUTOMATION     = 'true'
+        TF_INPUT             = 'false'
+        PATH                 = "${WORKSPACE}/.bin:${env.PATH}"
+    }
 
-                echo "Activating GCP Service Account..."
-                gcloud auth activate-service-account \
-                  --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+    stages {
 
-                echo "Setting GCP Project..."
-                gcloud config set project "$PROJECT_ID"
-
-                echo "Authenticated Accounts:"
-                gcloud auth list
-
-                echo "Current Project:"
-                gcloud config get-value project
-            '''
+        stage('Checkout Source Code') {
+            steps {
+                checkout scm
+                echo "Checked out ${env.GIT_BRANCH ?: 'unknown branch'} @ ${env.GIT_COMMIT ?: 'unknown commit'}"
+            }
         }
-      }
-    }
 
-    stage('Verify Backend Bucket Access') {
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-
-            echo "Verifying access to existing backend bucket gs://$BACKEND_BUCKET ..."
-            if ! gcloud storage buckets describe "gs://$BACKEND_BUCKET" >/dev/null 2>&1; then
-              echo "ERROR: Cannot access gs://$BACKEND_BUCKET. Ensure the bucket already exists and the service account has the required storage IAM roles (e.g. roles/storage.objectAdmin)."
-              exit 1
-            fi
-
-            echo "Backend bucket is accessible."
-          '''
+        
+        stage('Authenticate to GCP') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh '''
+                        set -euo pipefail
+                        gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+                        gcloud config set project "$GOOGLE_CLOUD_PROJECT"
+                    '''
+                }
+            }
         }
-      }
-    }
 
-    stage('Terraform Init') {
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-
-            ACCESS_TOKEN="$(gcloud auth print-access-token)"
-            export GOOGLE_OAUTH_ACCESS_TOKEN="$ACCESS_TOKEN"
-
-            terraform init \
-              -reconfigure \
-              -backend-config="access_token=$ACCESS_TOKEN" \
-              -backend-config="bucket=$BACKEND_BUCKET" \
-              -backend-config="prefix=${ENVIRONMENT}/terraform"
-          '''
+        
+        stage('Terraform Format') {
+            steps {
+                dir(params.TF_WORKING_DIR) {
+                    sh 'terraform fmt -check -recursive -diff'
+                }
+            }
         }
-      }
-    }
-
-    stage('Terraform Validate') {
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
-            terraform validate
-          '''
+         
+        stage('Terraform Init') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir(params.TF_WORKING_DIR) {
+                        sh 'terraform init -input=false -no-color'
+                    }
+                }
+            }
         }
-      }
-    }
 
-    stage('Terraform Plan') {
-      when {
-        expression { return params.DESTROY == false }
-      }
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
-            rm -f tfplan
-            terraform plan -var-file=terraform.tfvars -out=tfplan
-          '''
+        stage('Terraform Validate') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir(params.TF_WORKING_DIR) {
+                        sh 'terraform validate -no-color'
+                    }
+                }
+            }
         }
-      }
-    }
 
-    stage('Terraform Apply') {
-      when {
-        expression { return params.DESTROY == false }
-      }
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
-            terraform apply -auto-approve tfplan
-          '''
+        stage('Terraform Plan') {
+            when {
+                expression { return params.ACTION == 'apply' }
+            }
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir(params.TF_WORKING_DIR) {
+                        sh """
+                            set -euo pipefail
+                            terraform plan -no-color -input=false \
+                                -var-file="${params.VAR_FILE}" \
+                                -out=tfplan.out | tee tfplan.log
+                        """
+                    }
+                }
+            }
         }
-      }
-    }
 
-    stage('Terraform Destroy') {
-      when {
-        expression { return params.DESTROY == true }
-      }
-      steps {
-        withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-          sh '''
-            set -e
-            export CLOUDSDK_CONFIG="$WORKSPACE/.gcloud"
-            mkdir -p "$CLOUDSDK_CONFIG"
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-            gcloud config set project "$PROJECT_ID"
-            export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
-            terraform destroy -var-file=terraform.tfvars -auto-approve
-          '''
+        stage('Manual Approval before Apply') {
+            when {
+                expression { return params.ACTION == 'apply' }
+            }
+            steps {
+                script {
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: "Apply Terraform plan for ${env.GOOGLE_CLOUD_PROJECT}?", ok: 'Apply'
+                    }
+                }
+            }
         }
-      }
-    }
-  }
 
-  post {
-    always {
-      sh 'rm -f tfplan'
-      cleanWs()
+        stage('Terraform Apply') {
+            when {
+                expression { return params.ACTION == 'apply' }
+            }
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir(params.TF_WORKING_DIR) {
+                        sh '''
+                            set -euo pipefail
+                            terraform apply -no-color -input=false -auto-approve tfplan.out | tee tfapply.log
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Manual Approval before Destroy') {
+            when {
+                expression { return params.ACTION == 'destroy' }
+            }
+            steps {
+                script {
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: "Confirm terraform destroy for ${env.GOOGLE_CLOUD_PROJECT}?", ok: 'Destroy'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { return params.ACTION == 'destroy' }
+            }
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir(params.TF_WORKING_DIR) {
+                        sh """
+                            set -euo pipefail
+                            terraform destroy -no-color -input=false -auto-approve \
+                                -var-file="${params.VAR_FILE}" | tee tfdestroy.log
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Display Terraform Outputs') {
+            when {
+                allOf {
+                    expression { return params.ACTION == 'apply' }
+                    expression { return currentBuild.currentResult == 'SUCCESS' }
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir(params.TF_WORKING_DIR) {
+                        sh '''
+                            set -euo pipefail
+                            echo "===== Terraform Outputs ====="
+                            terraform output -no-color | tee tfoutputs.log
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Workspace Cleanup') {
+            steps {
+                dir(params.TF_WORKING_DIR) {
+                    sh '''
+                        set -euo pipefail
+                        rm -rf .terraform
+                        echo "Local .terraform directory removed. Cleanup complete."
+                    '''
+                }
+            }
+        }
     }
-  }
+
+    post {
+        always {
+            dir(params.TF_WORKING_DIR) {
+                archiveArtifacts artifacts: 'tfplan.out, tfplan.log, tfapply.log, tfdestroy.log, tfoutputs.log',
+                                  allowEmptyArchive: true,
+                                  fingerprint: true
+            }
+        }
+        success {
+            echo "Pipeline completed successfully for project ${env.GOOGLE_CLOUD_PROJECT}."
+        }
+        failure {
+            script {
+                currentBuild.result = 'FAILURE'
+            }
+            echo "Pipeline FAILED for project ${env.GOOGLE_CLOUD_PROJECT}. Review the archived tf*.log artifacts for the root cause."
+        }
+        cleanup {
+            cleanWs(deleteDirs: true, notFailBuild: true)
+        }
+    }
 }
