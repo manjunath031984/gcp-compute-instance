@@ -69,8 +69,8 @@ resource "google_compute_instance" "this" {
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
-  labels = var.labels
-  tags   = var.tags
+  labels   = var.labels
+  tags     = var.tags
   metadata = var.metadata
 
   shielded_instance_config {
