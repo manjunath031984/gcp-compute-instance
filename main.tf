@@ -8,19 +8,12 @@ locals {
   )
 }
 
-module "validation" {
-  source        = "./modules/validation"
-  project_id    = var.project_id
-  required_apis = var.required_apis
-}
-
 module "iam" {
   source                = "./modules/iam"
   project_id            = var.project_id
   service_account_email = var.service_account_email
   required_roles        = var.required_roles
   labels                = local.common_labels
-  depends_on            = [module.validation]
 }
 
 module "compute_instance" {
@@ -40,5 +33,5 @@ module "compute_instance" {
   tags                  = var.tags
   metadata              = var.metadata
   labels                = local.common_labels
-  depends_on            = [module.iam, module.validation]
+  depends_on            = [module.iam]
 }
