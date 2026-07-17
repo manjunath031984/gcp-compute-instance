@@ -198,7 +198,7 @@ Creates:
 - Explicit `depends_on` so IAM roles are applied before the compute instance is created
 - No hardcoded values — all configurable values are variables with sensible defaults
 - Type specifications and descriptions for all variables
-- Remote state stored in GCS for team collaboration and state locking
+- Remote state stored in GCS for team collaboration and state locking.
 
 ## Troubleshooting
 
